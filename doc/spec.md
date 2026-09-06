@@ -4,7 +4,9 @@
 `fmultiplier` is a **multi-cycle** single-precision floating-point multiplier that accepts one operation at a time using a **valid/out_valid** handshake. Internally it runs a staged pipeline controlled by a small FSM (`counter`) and produces a 32-bit IEEE-754 binary32 result.
 
 This design currently targets:
-- **Bit-accurate results for normal FP32 numbers** (typical IEEE-754 behavior with round-to-nearest-even),
+- Bit-accurate IEEE-754 binary32 multiplication for normal finite FP32 input operands,
+- IEEE-754 round-to-nearest, ties-to-even (RNE) rounding,
+- Correct handling of normal finite results, overflow to signed infinity, and underflow to signed zero for the supported evaluation domain,
 - Deterministic latency (fixed number of cycles from `valid` to `out_valid`),
 - The design behaves as: z = a*b 
 - z, a and b are single precision 32-bit IEEE-754 numbers
@@ -60,11 +62,11 @@ For each operand:
 
 Internal signals:
 - `a_s, b_s, z_s`: sign bits
-- `a_e, b_e, z_e`: signed exponent in *unbiased* domain (stored as 10-bit regs, used with `$signed`)
+- `a_e, b_e, z_e`: signed exponents represented internally in *unbiased* exponent domain (stored as 10-bit regs, used with `$signed`)
 - `a_m, b_m, z_m`: mantissas extended to 24-bit with hidden 1 when applicable
 - `product`: 50-bit product of mantissas
 - `guard_bit`, `round_bit`, `sticky`: rounding support bits for RNE
-
+-  All exponent arithmetic must be performed using signed values
 ---
 
 ## FSM / Pipeline Stages
@@ -91,15 +93,30 @@ All stage actions are performed inside a single sequential always block using `c
 > - hidden-one insertion always happens,
 > - special logic is bypassed in practice.
 
-### Stage 3 — Input normalization (lightweight)
-- If mantissa MSB is not set, shift left and decrement exponent.
-- This is mainly relevant for denormal handling; for strictly normal inputs, this typically does nothing.
+
+### Stage 3 — Prepare for Multiplication
+
+For the supported normal-input domain, both significands are already normalized:
+
+    1.xxxxxxxxxxxxxxxxxxxxxxx
+
+No input normalization is required.
+
+This stage may be used to register or prepare intermediate values for multiplication.
 
 ### Stage 4 — Multiply core
 - Compute result sign: `z_s = a_s ^ b_s`
-- Exponent add: `z_e = a_e + b_e + 1`
+- Exponent add: `z_e = a_e + b_e`
 - Mantissa product: `product = a_m * b_m * 4`
   - The `*4` scaling aligns the product for extraction into `{z_m, G, R, S}`.
+
+The significand product represents a value in the range:
+
+    [1.0, 4.0)
+
+The product must subsequently be normalized.
+
+If the product is greater than or equal to 2.0, the exponent must be incremented by one during normalization.
 
 ### Stage 5 — Extract mantissa + rounding bits
 - `z_m = product[49:26]`
@@ -131,12 +148,33 @@ This stage performs:
 ## Assumptions & Constraints
 - Inputs: `exp ∈ [1..254]` (no zeros/subnormals, no inf/nan)
 
+However, the multiplication result may:
+
+- be a normal finite FP32 value,
+- overflow to signed infinity,
+- underflow to signed zero.
+
+The DUT must handle these output cases correctly.
+
 ---
 
 ## Verification Notes
-Recommended testbench behavior for this handshake design:
-- Drive `a/b` and pulse `valid` **synchronously** on clock edges.
-- Wait for `out_valid` before sampling `z`.
-- Generate only normal operands,
+1. Drive a and b.
+2. Assert valid for one clock cycle while the DUT is idle.
+3. Deassert valid.
+4. Wait for out_valid.
+5. Sample z when out_valid is asserted.
+6. Compare z bit-for-bit against the expected IEEE-754 binary32 result.
+
+The implementation must prioritize bit-accurate functional correctness for:
+
+- sign calculation,
+- exponent arithmetic,
+- significand multiplication,
+- normalization,
+- IEEE-754 round-to-nearest, ties-to-even,
+- overflow to signed infinity,
+- underflow to signed zero.
+
 
 ---
