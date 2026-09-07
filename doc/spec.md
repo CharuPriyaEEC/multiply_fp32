@@ -78,9 +78,15 @@ The FSM is controlled by:
 All stage actions are performed inside a single sequential always block using `case(counter)`.
 
 ### Stage 1 — Unpack
-- Extract mantissas into 24-bit regs (initially `{1'b0, frac}`).
-- Convert biased exponent into unbiased form: `exp - 127`.
-- Capture signs.
+- Extract sign, exponent, and fraction fields from both operands.
+- Capture the operand signs.
+- Convert the biased exponent fields to unbiased signed exponents:
+
+    unbiased_exp = biased_exp - 127
+
+- Reconstruct the 24-bit significands for normal inputs:
+
+    significand = {1'b1, fraction}
 
 ### Stage 2 — Special classification + denormal setup
 - Checks operand classes using `a_is_nan`, `a_is_inf`, `a_is_zero`, etc. (derived from `a_r/b_r` fields).
@@ -135,9 +141,42 @@ This stage performs:
    - If `G == 1` and `(R || S || LSB)` then increment mantissa.
    - Handles carry-out from rounding:
      - If rounding overflows mantissa, set mantissa to 0x800000 and increment exponent.
+If rounding causes a significand overflow, for example:
+
+    1.111...111 + rounding increment
+
+becomes:
+
+    10.000...000
+
+then:
+
+- renormalize the significand,
+- increment the exponent by one.
+
+- Overflow Behavior
+
+Although all input operands are normal finite FP32 values, their product may overflow.
+
+After normalization and rounding, if the final exponent exceeds the maximum representable finite binary32 exponent, the output must be signed infinity:
+
+    z = {z_s, 8'hFF, 23'd0}
+
+where:
+
+    z_s = a_s ^ b_s
 
 ### Stage 7 — Pack
-- For normal path:
+- For a normal finite result:
+    biased_exponent = unbiased_exponent + 127
+
+Before packing:
+
+- detect exponent overflow and output signed infinity,
+- detect underflow-to-zero and output signed zero when applicable,
+- ensure rounding has already been completed.
+
+
   - Pack sign, biased exponent, fraction.
   - If exponent indicates overflow -> output INF.
   - If exponent indicates exact denorm boundary -> force exponent field to 0 (denormal/zero representation).
