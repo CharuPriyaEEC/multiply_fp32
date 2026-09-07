@@ -154,27 +154,15 @@ then:
 - renormalize the significand,
 - increment the exponent by one.
 
-- Overflow Behavior
-
-Although all input operands are normal finite FP32 values, their product may overflow.
-
-After normalization and rounding, if the final exponent exceeds the maximum representable finite binary32 exponent, the output must be signed infinity:
-
-    z = {z_s, 8'hFF, 23'd0}
-
-where:
-
-    z_s = a_s ^ b_s
 
 ### Stage 7 — Pack
-- For a normal finite result:
-    biased_exponent = unbiased_exponent + 127
+- For a normal path
 
-Before packing:
+  - Before packing:
 
-- detect exponent overflow and output signed infinity,
-- detect underflow-to-zero and output signed zero when applicable,
-- ensure rounding has already been completed.
+    - detect exponent overflow and output signed infinity,
+    - detect underflow-to-zero and output signed zero when applicable,
+    - ensure rounding has already been completed.
 
 
   - Pack sign, biased exponent, fraction.
