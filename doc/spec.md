@@ -145,15 +145,8 @@ This stage performs:
 
 
 ### Stage 7 — Pack
+
 - For a normal path:
-
--Before packing:
-
-  - detect exponent overflow and output signed infinity,
-  - detect underflow-to-zero and output signed zero when applicable,
-  - ensure rounding has already been completed.
-
-
   - Pack sign, biased exponent, fraction.
   - If exponent indicates overflow -> output INF.
   - If exponent indicates exact denorm boundary -> force exponent field to 0 (denormal/zero representation).
