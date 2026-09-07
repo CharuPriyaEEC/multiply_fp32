@@ -78,7 +78,7 @@ The FSM is controlled by:
 All stage actions are performed inside a single sequential always block using `case(counter)`.
 
 ### Stage 1 — Unpack
-- Extract sign, exponent, and fraction fields from both operands.
+- Extract mantissas into 24-bit regs (initially `{1'b0, frac}`).
 - Capture the operand signs.
 - Convert the biased exponent fields to unbiased signed exponents:
 
@@ -141,18 +141,6 @@ This stage performs:
    - If `G == 1` and `(R || S || LSB)` then increment mantissa.
    - Handles carry-out from rounding:
      - If rounding overflows mantissa, set mantissa to 0x800000 and increment exponent.
-If rounding causes a significand overflow, for example:
-
-    1.111...111 + rounding increment
-
-becomes:
-
-    10.000...000
-
-then:
-
-- renormalize the significand,
-- increment the exponent by one.
 
 
 ### Stage 7 — Pack
