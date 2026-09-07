@@ -143,14 +143,15 @@ This stage performs:
      - If rounding overflows mantissa, set mantissa to 0x800000 and increment exponent.
 
 
+
 ### Stage 7 — Pack
-- For a normal path
+- For a normal path:
 
-  - Before packing:
+-Before packing:
 
-    - detect exponent overflow and output signed infinity,
-    - detect underflow-to-zero and output signed zero when applicable,
-    - ensure rounding has already been completed.
+  - detect exponent overflow and output signed infinity,
+  - detect underflow-to-zero and output signed zero when applicable,
+  - ensure rounding has already been completed.
 
 
   - Pack sign, biased exponent, fraction.
